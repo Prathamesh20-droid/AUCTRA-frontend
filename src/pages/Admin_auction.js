@@ -37,18 +37,6 @@ const markPlayerAsSold = async (id) => {
   }
 };
 
-const markPlayerAsUnsold = async (id) => {
-  try {
-    const res = await api.post(
-      "/mark-unsold",
-      { player_id: id },
-      { withCredentials: true }
-    );
-    alert(res.data.message);
-  } catch (err) {
-    alert(err.response?.data?.error || "Failed to mark UNSOLD");
-  }
-};
 
 const handlePause = async () => {
   try {
@@ -458,13 +446,7 @@ const Admin_auction = () => {
                       >
                         Sold
                       </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary m-2"
-                        onClick={() => markPlayerAsUnsold(player.id)}
-                      >
-                        Unsold
-                      </button>
+
                       <button
                         type="button"
                         className="btn btn-warning m-2"
