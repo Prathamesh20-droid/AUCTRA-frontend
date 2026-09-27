@@ -106,7 +106,10 @@ const Unsold = () => {
                 src={getImageUrl(player.image_path) || fallbackImg}
                 alt={player?.name || "Unsold player photo"}
                 className="img-fluid rounded-circle border border-4"
-                onError={(e) => (e.target.src = fallbackImg)}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackImg;
+                }}
               />
               <div className="unsold-stamp">UNSOLD</div>
             </div>
