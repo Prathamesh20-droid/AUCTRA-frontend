@@ -4,9 +4,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import fallbackImg from "../assets/images/PlAyer.png";
 import { api } from "../Config";
 import { getImageUrl } from "../Utils/constants";
-
+import { useAuth } from "../context/AuthContext";
 
 const Unsold = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const playerId =
@@ -46,27 +47,20 @@ const Unsold = () => {
     };
   }, [player, playerId]);
 
-  // 🕒 Auto return to auction after 10 seconds
+  // Auto return to auction after 9 seconds to avoid race condition with 10s backend timer
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Ask backend who this user is
-      api
-        .get("/check-auth", { withCredentials: true })
-        .then((res) => {
-          const role = res.data.user?.role;
-          if (role === "admin") {
-            navigate("/Admin_auction");
-          } else if (role === "team") {
-            navigate("/waiting");
-          } else {
-            navigate("/");
-          }
-        })
-        .catch(() => navigate("/"));
-    }, 10000)
+      if (user?.role === "admin") {
+        navigate("/Admin_auction");
+      } else if (user?.role === "team") {
+        navigate("/auction");
+      } else {
+        navigate("/");
+      }
+    }, 9000);
 
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [navigate, user]);
 
   useEffect(() => {
     const audio = new Audio(require("../assets/Sounds/Fail/fail-234710.mp3"));

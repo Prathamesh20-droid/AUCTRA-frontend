@@ -5,27 +5,23 @@ import fallBackImage from "../assets/images/football-team_16848377.png";
 import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "../Config";
 import { getImageUrl } from "../Utils/constants";
+import { useAuth } from "../context/AuthContext";
 
 const Sold = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { player, team } = location.state || {};
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      api
-        .get("/check-auth", { withCredentials: true })
-        .then((res) => {
-          const role = res.data.user?.role;
-          if (role === "admin") navigate("/Admin_auction");
-          else if (role === "team") navigate("/auction");
-          else navigate("/");
-        })
-        .catch(() => navigate("/"));
-    }, 10000);
+      if (user?.role === "admin") navigate("/Admin_auction");
+      else if (user?.role === "team") navigate("/auction");
+      else navigate("/");
+    }, 9000);
 
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [navigate, user]);
 
   useEffect(() => {
   const audio = new Audio(require("../assets/Sounds/Success/Sold brass-fanfare-reverberated-146263.mp3"));
