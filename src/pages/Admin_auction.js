@@ -86,6 +86,33 @@ const formatTime = (seconds) => {
   return `${mins}:${secs}`;
 };
 
+const formatBidTime = (timeStr) => {
+  if (!timeStr) return "";
+  try {
+    let parseable = String(timeStr).trim();
+    if (!parseable.includes("T") && parseable.includes(" ")) {
+      parseable = parseable.replace(" ", "T") + "Z";
+    } else if (
+      parseable.includes("T") &&
+      !parseable.endsWith("Z") &&
+      !parseable.includes("+") &&
+      !parseable.slice(10).includes("-")
+    ) {
+      parseable += "Z";
+    }
+    const date = new Date(parseable);
+    if (isNaN(date.getTime())) return String(timeStr);
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return String(timeStr);
+  }
+};
+
 const adminAuctionReducer = (state, action) => {
   switch (action.type) {
     case "STATE":
@@ -103,13 +130,14 @@ const adminAuctionReducer = (state, action) => {
       return {
         ...state,
         player: action.player,
-        history: [],
+        history: Array.isArray(action.history) ? action.history : state.history,
         currentBid: action.currentBid,
         timer: action.timer ?? state.timer,
         paused: false,
         active: true,
         loading: false
       };
+
     case "STARTED":
       return {
         ...state,
@@ -196,9 +224,11 @@ const Admin_auction = () => {
         type: "STATUS",
         player: data.player,
         currentBid: current,
+        history: data.history || [],
         timer: data.remaining_seconds
       });
     };
+
 
     const handleAuctionStarted = (data) => {
       console.log("auction_started:", data);
@@ -517,10 +547,11 @@ const Admin_auction = () => {
                           className={`${flashIndex === i ? "flash" : ""
                             } ${rankClass}`}
                         >
-                          🕒 {note.bid_time} — {note.team_name} bid ₹
+                          🕒 {formatBidTime(note.bid_time)} — {note.team_name} bid ₹
                           {note.bid_amount}
                         </p>
                       );
+
                     })
                   ) : (
                     <p>No Bids yet</p>

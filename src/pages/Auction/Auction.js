@@ -15,6 +15,33 @@ const formatTime = (seconds) => {
   return `${mins}:${secs}`;
 };
 
+const formatBidTime = (timeStr) => {
+  if (!timeStr) return "";
+  try {
+    let parseable = String(timeStr).trim();
+    if (!parseable.includes("T") && parseable.includes(" ")) {
+      parseable = parseable.replace(" ", "T") + "Z";
+    } else if (
+      parseable.includes("T") &&
+      !parseable.endsWith("Z") &&
+      !parseable.includes("+") &&
+      !parseable.slice(10).includes("-")
+    ) {
+      parseable += "Z";
+    }
+    const date = new Date(parseable);
+    if (isNaN(date.getTime())) return String(timeStr);
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return String(timeStr);
+  }
+};
+
 const auctionReducer = (state, action) => {
   switch (action.type) {
     case "STATUS":
@@ -22,11 +49,12 @@ const auctionReducer = (state, action) => {
         ...state,
         player: action.player,
         currentBid: action.currentBid,
-        history: [],
+        history: Array.isArray(action.history) ? action.history : state.history,
         paused: false,
         teamBalance: action.teamBalance,
         loading: false
       };
+
     case "STARTED":
       return {
         ...state,
@@ -101,8 +129,10 @@ const Auction = () => {
       type: "STATUS",
       player: data.player,
       currentBid: current,
+      history: data.history || [],
       teamBalance: Number(data.team_purse ?? user?.team_purse ?? 0)
     });
+
   }, [user]);
 
   const handleAuctionStarted = useCallback((data) => {
@@ -399,9 +429,10 @@ const Auction = () => {
                       className={`${flashIndex === i ? "flash" : ""
                         } ${rankClass}`}
                     >
-                      🕒 {note.bid_time} — {note.team_name} bid ₹
+                      🕒 {formatBidTime(note.bid_time)} — {note.team_name} bid ₹
                       {note.bid_amount}
                     </p>
+
                   );
                 })
               ) : (
