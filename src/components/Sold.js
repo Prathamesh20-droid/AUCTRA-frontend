@@ -3,9 +3,9 @@ import React, { useEffect } from "react";
 import fallbackImg from "../assets/images/PlAyer.png";
 import fallBackImage from "../assets/images/football-team_16848377.png";
 import { useNavigate, useLocation } from "react-router-dom";
-import { api } from "../Config";
 import { getImageUrl } from "../Utils/constants";
 import { useAuth } from "../context/AuthContext";
+
 
 const Sold = () => {
   const { user } = useAuth();
