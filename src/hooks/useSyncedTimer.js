@@ -46,15 +46,54 @@ export default function useSyncedTimer(socket, setTimeLeft) {
       setTimeLeft(remaining);
     };
 
+    const handleStatus = (data) => {
+      if (!data) return;
+      isPausedRef.current = Boolean(data.paused);
+      const remaining = Number(
+        data?.remaining_seconds ?? data?.remaining ?? 0
+      );
+      if (!Number.isNaN(remaining)) {
+        setTimeLeft(remaining);
+      }
+    };
+
+    const handleStarted = (data) => {
+      isPausedRef.current = false;
+      const remaining = Number(data?.duration ?? 0);
+      if (!Number.isNaN(remaining)) {
+        setTimeLeft(remaining);
+      }
+    };
+
+    const handleEnded = () => {
+      isPausedRef.current = false;
+      setTimeLeft(0);
+    };
+
+    const handleState = (data) => {
+      if (data?.status === "no_active_auction") {
+        isPausedRef.current = false;
+        setTimeLeft(0);
+      }
+    };
+
+    socket.on("auction_status", handleStatus);
+    socket.on("auction_started", handleStarted);
     socket.on("timer_update", handleTimerUpdate);
     socket.on("auction_paused", handlePaused);
     socket.on("auction_resumed", handleResumed);
+    socket.on("auction_ended", handleEnded);
+    socket.on("auction_state", handleState);
 
     return () => {
       clearInterval(interval);
+      socket.off("auction_status", handleStatus);
+      socket.off("auction_started", handleStarted);
       socket.off("timer_update", handleTimerUpdate);
       socket.off("auction_paused", handlePaused);
       socket.off("auction_resumed", handleResumed);
+      socket.off("auction_ended", handleEnded);
+      socket.off("auction_state", handleState);
     };
 
   }, [socket, setTimeLeft]);

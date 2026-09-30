@@ -44,14 +44,25 @@ const formatBidTime = (timeStr) => {
 
 const auctionReducer = (state, action) => {
   switch (action.type) {
+    case "STATE":
+      return {
+        ...state,
+        player: null,
+        history: [],
+        currentBid: 0,
+        timer: 0,
+        paused: false,
+        loading: false
+      };
     case "STATUS":
       return {
         ...state,
         player: action.player,
         currentBid: action.currentBid,
         history: Array.isArray(action.history) ? action.history : state.history,
-        paused: false,
-        teamBalance: action.teamBalance,
+        paused: Boolean(action.paused),
+        timer: action.timer ?? state.timer,
+        teamBalance: action.teamBalance !== undefined ? action.teamBalance : state.teamBalance,
         loading: false
       };
 
@@ -122,9 +133,16 @@ const Auction = () => {
     currentBid: 0,
     timer: 0,
     paused: false,
-    teamBalance: 0,
+    teamBalance: Number(user?.team_purse ?? 0),
     loading: true
   });
+
+  useEffect(() => {
+    if (user?.team_purse !== undefined && user?.team_purse !== null) {
+      dispatch({ type: "PURSE", purse: Number(user.team_purse) });
+    }
+  }, [user?.team_purse]);
+
   const [flashIndex, setFlashIndex] = useState(null);
   const audioRef = useRef(null);
   if (audioRef.current === null) {
@@ -139,15 +157,30 @@ const Auction = () => {
     const base = Number(data.player.base_price);
     const current = Number(data.highest_bid?.bid_amount || base);
 
+    let purse;
+    if (data.team_purse !== undefined && data.team_purse !== null && Number(data.team_purse) > 0) {
+      purse = Number(data.team_purse);
+    } else if (user?.team_purse !== undefined && user?.team_purse !== null && Number(user.team_purse) > 0) {
+      purse = Number(user.team_purse);
+    }
+
     dispatch({
       type: "STATUS",
       player: data.player,
       currentBid: current,
       history: data.history || [],
-      teamBalance: Number(data.team_purse ?? user?.team_purse ?? 0)
+      timer: data.remaining_seconds,
+      paused: Boolean(data.paused),
+      ...(purse !== undefined ? { teamBalance: purse } : {})
     });
 
   }, [user]);
+
+  const handleAuctionState = useCallback((data) => {
+    if (data.status === "no_active_auction") {
+      dispatch({ type: "STATE" });
+    }
+  }, []);
 
   const handleAuctionStarted = useCallback((data) => {
     dispatch({
@@ -228,12 +261,6 @@ const Auction = () => {
     }, 10000);
   }, []);
 
-  const handleAuctionState = useCallback((data) => {
-    if (data.status === "no_active_auction") {
-      dispatch({ type: "NO_ACTIVE" });
-    }
-  }, []);
-
   const handlersRef = useRef({});
   handlersRef.current = {
     handleAuctionStatus,
@@ -252,9 +279,17 @@ const Auction = () => {
 
     if (authLoading || !user) return;
 
-    socket.emit("join_auction",{
-      team_id: user.team_id
-    });
+    const joinAuction = () => {
+      socket.emit("join_auction", {
+        team_id: user.team_id
+      });
+    };
+
+    if (socket.connected) {
+      joinAuction();
+    } else {
+      socket.on("connect", joinAuction);
+    }
 
     const onStatus = (data) => handlersRef.current.handleAuctionStatus(data);
     const onStarted = (data) => handlersRef.current.handleAuctionStarted(data);
@@ -265,10 +300,8 @@ const Auction = () => {
     const onEnded = (data) => handlersRef.current.handleEnded(data);
     const onPurse = (data) => handlersRef.current.handlePurseUpdate(data);
     const onUndoSale = (data) => handlersRef.current.handleUndoSale(data);
-
     const onState = (data) => handlersRef.current.handleAuctionState(data);
 
-    socket.on("auction_state", onState);
     socket.on("auction_status", onStatus);
     socket.on("auction_started", onStarted);
     socket.on("auction_update", onUpdate);
@@ -278,13 +311,14 @@ const Auction = () => {
     socket.on("auction_ended", onEnded);
     socket.on("purse_update", onPurse);
     socket.on("undo_sale", onUndoSale);
+    socket.on("auction_state", onState);
 
     socket.on("bid_rejected", (msg) => {
       alert(msg?.error || "Bid rejected");
     });
 
     return () => {
-      socket.off("auction_state", onState);
+      socket.off("connect", joinAuction);
       socket.off("auction_status", onStatus);
       socket.off("auction_started", onStarted);
       socket.off("auction_update", onUpdate);
@@ -294,6 +328,7 @@ const Auction = () => {
       socket.off("auction_ended", onEnded);
       socket.off("purse_update", onPurse);
       socket.off("undo_sale", onUndoSale);
+      socket.off("auction_state", onState);
       socket.off("bid_rejected");
     };
 
@@ -467,11 +502,11 @@ const Auction = () => {
                 </div>
                 <div className="p-3 mb-2 rounded bg-light shadow d-flex align-items-center">
                   <img src={user?.team_logo ? `${API_BASE_URL}/${user.team_logo}` : fallbackImg}
-                    alt={user?.team_name ? `${user.team_name} logo` : "Team purse logo"}
+                    alt={user?.team_name || user?.name ? `${user?.team_name || user?.name} logo` : "Team purse logo"}
                     width="50"
                     height="50"
                     className="me-2"/>
-                    <strong>{user.team_name} Purse</strong>
+                    <strong>{user?.team_name || user?.name || "Team"} Purse</strong>
                 </div>
               </div>
             </div>

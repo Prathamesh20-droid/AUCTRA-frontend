@@ -43,6 +43,7 @@ const handlePause = async () => {
     await api.post("/pause-auction", {}, { withCredentials: true });
   } catch (err) {
     console.error("Pause failed:", err);
+    alert(err.response?.data?.detail || err.response?.data?.error || "Failed to pause auction");
   }
 };
 
@@ -51,6 +52,7 @@ const handleResume = async () => {
     await api.post("/resume-auction", {}, { withCredentials: true });
   } catch (err) {
     console.error("Resume failed:", err);
+    alert(err.response?.data?.detail || err.response?.data?.error || "Failed to resume auction");
   }
 };
 
@@ -133,7 +135,7 @@ const adminAuctionReducer = (state, action) => {
         history: Array.isArray(action.history) ? action.history : state.history,
         currentBid: action.currentBid,
         timer: action.timer ?? state.timer,
-        paused: false,
+        paused: Boolean(action.paused),
         active: true,
         loading: false
       };
@@ -232,7 +234,8 @@ const Admin_auction = () => {
         player: data.player,
         currentBid: current,
         history: data.history || [],
-        timer: data.remaining_seconds
+        timer: data.remaining_seconds,
+        paused: Boolean(data.paused)
       });
     };
 
