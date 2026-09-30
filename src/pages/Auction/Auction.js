@@ -62,7 +62,14 @@ const auctionReducer = (state, action) => {
         history: [],
         currentBid: action.currentBid,
         timer: action.timer,
-        paused: false
+        paused: false,
+        loading: false
+      };
+    case "NO_ACTIVE":
+      return {
+        ...state,
+        player: null,
+        loading: false
       };
     case "UPDATE":
       return {
@@ -221,6 +228,12 @@ const Auction = () => {
     }, 10000);
   }, []);
 
+  const handleAuctionState = useCallback((data) => {
+    if (data.status === "no_active_auction") {
+      dispatch({ type: "NO_ACTIVE" });
+    }
+  }, []);
+
   const handlersRef = useRef({});
   handlersRef.current = {
     handleAuctionStatus,
@@ -231,7 +244,8 @@ const Auction = () => {
     handleResumed,
     handleEnded,
     handlePurseUpdate,
-    handleUndoSale
+    handleUndoSale,
+    handleAuctionState
   };
 
   useEffect(() => {
@@ -252,6 +266,9 @@ const Auction = () => {
     const onPurse = (data) => handlersRef.current.handlePurseUpdate(data);
     const onUndoSale = (data) => handlersRef.current.handleUndoSale(data);
 
+    const onState = (data) => handlersRef.current.handleAuctionState(data);
+
+    socket.on("auction_state", onState);
     socket.on("auction_status", onStatus);
     socket.on("auction_started", onStarted);
     socket.on("auction_update", onUpdate);
@@ -267,6 +284,7 @@ const Auction = () => {
     });
 
     return () => {
+      socket.off("auction_state", onState);
       socket.off("auction_status", onStatus);
       socket.off("auction_started", onStarted);
       socket.off("auction_update", onUpdate);
