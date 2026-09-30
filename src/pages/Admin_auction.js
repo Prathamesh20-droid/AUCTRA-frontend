@@ -172,13 +172,20 @@ const adminAuctionReducer = (state, action) => {
         ...state,
         timer: typeof action.timer === "function" ? action.timer(state.timer) : action.timer
       };
+    case "UNDO_SALE":
+      return {
+        ...state,
+        history: [...state.history, action.entry]
+      };
     default:
       return state;
   }
 };
 
 const Admin_auction = () => {
+  const [undoBanner, setUndoBanner] = useState(null);
   const [auction, dispatch] = useReducer(adminAuctionReducer, {
+
     player: null,
     history: [],
     currentBid: 0,
@@ -271,6 +278,32 @@ const Admin_auction = () => {
       }
     };
 
+    const handleUndoSaleEvent = (data) => {
+      console.log("undo_sale event on admin:", data);
+      const msg = data.message || `Sale of ${data.player_name || data.player?.name || "Player"} was reversed.`;
+      setUndoBanner(msg);
+
+      const entry = {
+        id: `undo-${data.player_id}-${Date.now()}`,
+        type: "undo_sale",
+        is_undo: true,
+        player_id: data.player_id,
+        player_name: data.player_name || data.player?.name,
+        team_name: data.team_name,
+        bid_time: new Date().toISOString(),
+        message: msg
+      };
+
+      dispatch({
+        type: "UNDO_SALE",
+        entry
+      });
+
+      setTimeout(() => {
+        setUndoBanner((current) => (current === msg ? null : current));
+      }, 10000);
+    };
+
     if (socket.connected) {
       joinAuction();
     } else {
@@ -298,6 +331,9 @@ const Admin_auction = () => {
     // Auction ended
     socket.on("auction_ended", handleAuctionEnded);
 
+    // Undo sale
+    socket.on("undo_sale", handleUndoSaleEvent);
+
     socket.onAny((event, data) => {
       console.log("Socket event:", event, data);
     });
@@ -311,7 +347,9 @@ const Admin_auction = () => {
       socket.off("auction_paused", handleAuctionPaused);
       socket.off("auction_resumed", handleAuctionResumed);
       socket.off("auction_ended", handleAuctionEnded);
+      socket.off("undo_sale", handleUndoSaleEvent);
     };
+
 
   }, [navigate]);
 
@@ -371,9 +409,12 @@ const Admin_auction = () => {
     setFlashIndex(lastIndex);
 
     try {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
     } catch { }
+
 
     const timeout = setTimeout(() => {
       setFlashIndex(null);
@@ -400,7 +441,18 @@ const Admin_auction = () => {
       <NavbarComponent />
 
       <div className="auction-bg d-flex flex-column align-items-center">
+        {undoBanner && (
+          <div className="container mt-2">
+            <div className="alert alert-warning alert-dismissible fade show shadow d-flex align-items-center justify-content-between" role="alert">
+              <div>
+                <strong>↩ Sale Reversal Notice:</strong> {undoBanner}
+              </div>
+              <button type="button" className="btn-close" onClick={() => setUndoBanner(null)} aria-label="Close"></button>
+            </div>
+          </div>
+        )}
         <div className="container auction-container mt-1 p-3 rounded shadow-lg">
+
           {player ? (
             <>
               <div className="container player-info-container shadow p-3 rounded">
@@ -541,6 +593,18 @@ const Admin_auction = () => {
                               ? "bronze"
                               : "";
 
+                      if (note.type === "undo_sale" || note.is_undo) {
+                        return (
+                          <p
+                            key={note.id || `undo-${note.player_id}-${i}`}
+                            className="undo-sale-note text-warning fw-bold py-1 px-2 my-1 rounded"
+                            style={{ backgroundColor: "rgba(255, 193, 7, 0.15)", borderLeft: "4px solid #ffc107" }}
+                          >
+                            ↩ {formatBidTime(note.bid_time)} — {note.message}
+                          </p>
+                        );
+                      }
+
                       return (
                         <p
                           key={note.id || `${note.team_name || 'team'}-${note.bid_amount || 0}-${note.bid_time || i}-${i}`}
@@ -551,6 +615,7 @@ const Admin_auction = () => {
                           {note.bid_amount}
                         </p>
                       );
+
 
                     })
                   ) : (

@@ -92,6 +92,11 @@ const auctionReducer = (state, action) => {
         ...state,
         teamBalance: action.purse
       };
+    case "UNDO_SALE":
+      return {
+        ...state,
+        history: [...state.history, action.entry]
+      };
     default:
       return state;
   }
@@ -101,8 +106,10 @@ const Auction = () => {
 
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [undoBanner, setUndoBanner] = useState(null);
 
   const [auction, dispatch] = useReducer(auctionReducer, {
+
     player: null,
     history: [],
     currentBid: 0,
@@ -188,6 +195,32 @@ const Auction = () => {
     });
   }, []);
 
+  const handleUndoSale = useCallback((data) => {
+    console.log("undo_sale received:", data);
+    const msg = data.message || `Sale of ${data.player_name || data.player?.name || "Player"} was reversed by Admin.`;
+    setUndoBanner(msg);
+
+    const entry = {
+      id: `undo-${data.player_id}-${Date.now()}`,
+      type: "undo_sale",
+      is_undo: true,
+      player_id: data.player_id,
+      player_name: data.player_name || data.player?.name,
+      team_name: data.team_name,
+      bid_time: new Date().toISOString(),
+      message: msg
+    };
+
+    dispatch({
+      type: "UNDO_SALE",
+      entry
+    });
+
+    setTimeout(() => {
+      setUndoBanner((current) => (current === msg ? null : current));
+    }, 10000);
+  }, []);
+
   const handlersRef = useRef({});
   handlersRef.current = {
     handleAuctionStatus,
@@ -197,7 +230,8 @@ const Auction = () => {
     handlePaused,
     handleResumed,
     handleEnded,
-    handlePurseUpdate
+    handlePurseUpdate,
+    handleUndoSale
   };
 
   useEffect(() => {
@@ -216,6 +250,7 @@ const Auction = () => {
     const onResumed = (data) => handlersRef.current.handleResumed(data);
     const onEnded = (data) => handlersRef.current.handleEnded(data);
     const onPurse = (data) => handlersRef.current.handlePurseUpdate(data);
+    const onUndoSale = (data) => handlersRef.current.handleUndoSale(data);
 
     socket.on("auction_status", onStatus);
     socket.on("auction_started", onStarted);
@@ -225,6 +260,7 @@ const Auction = () => {
     socket.on("auction_resumed", onResumed);
     socket.on("auction_ended", onEnded);
     socket.on("purse_update", onPurse);
+    socket.on("undo_sale", onUndoSale);
 
     socket.on("bid_rejected", (msg) => {
       alert(msg?.error || "Bid rejected");
@@ -238,11 +274,13 @@ const Auction = () => {
       socket.off("auction_paused", onPaused);
       socket.off("auction_resumed", onResumed);
       socket.off("auction_ended", onEnded);
-      socket.off("bid_rejected");
       socket.off("purse_update", onPurse);
+      socket.off("undo_sale", onUndoSale);
+      socket.off("bid_rejected");
     };
 
   }, [user, authLoading, navigate]);
+
 
   useEffect(() => {
     const el = document.querySelector(".notifications-list");
@@ -260,9 +298,12 @@ const Auction = () => {
     setFlashIndex(lastIndex);
 
     try {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
     } catch { }
+
 
     const timeout = setTimeout(() => {
       setFlashIndex(null);
@@ -313,7 +354,18 @@ const Auction = () => {
     <>
       <Navbar />
       <div className="auction-bg d-flex flex-column align-items-center">
+        {undoBanner && (
+          <div className="container mt-2">
+            <div className="alert alert-warning alert-dismissible fade show shadow d-flex align-items-center justify-content-between" role="alert">
+              <div>
+                <strong>↩ Sale Reversal Notice:</strong> {undoBanner}
+              </div>
+              <button type="button" className="btn-close" onClick={() => setUndoBanner(null)} aria-label="Close"></button>
+            </div>
+          </div>
+        )}
         <div className="container auction-container p-1 rounded shadow-lg">
+
           <div className="container player-info-container shadow p-2 rounded">
             <div className="row g-4">
               <div className="col-md-3 text-center">
@@ -423,6 +475,18 @@ const Auction = () => {
                           ? "bronze"
                           : "";
 
+                  if (note.type === "undo_sale" || note.is_undo) {
+                    return (
+                      <p
+                        key={note.id || `undo-${note.player_id}-${i}`}
+                        className="undo-sale-note text-warning fw-bold py-1 px-2 my-1 rounded"
+                        style={{ backgroundColor: "rgba(255, 193, 7, 0.15)", borderLeft: "4px solid #ffc107" }}
+                      >
+                        ↩ {formatBidTime(note.bid_time)} — {note.message}
+                      </p>
+                    );
+                  }
+
                   return (
                     <p
                       key={note.id || `${note.team_name || 'team'}-${note.bid_amount || 0}-${note.bid_time || i}-${i}`}
@@ -432,8 +496,8 @@ const Auction = () => {
                       🕒 {formatBidTime(note.bid_time)} — {note.team_name} bid ₹
                       {note.bid_amount}
                     </p>
-
                   );
+
                 })
               ) : (
                 <p>No Bids yet</p>
