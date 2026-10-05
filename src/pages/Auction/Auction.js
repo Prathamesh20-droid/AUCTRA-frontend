@@ -372,8 +372,9 @@ const Auction = () => {
 
     if (auction.paused) return alert("Auction paused");
 
-    if (amount > auction.teamBalance) {
-      return alert("Insufficient purse");
+    const balance = Number(auction.teamBalance ?? 0);
+    if (amount > balance) {
+      return alert("Insufficient balance");
     }
 
     socket.emit("place_bid", {
@@ -487,7 +488,6 @@ const Auction = () => {
                       className="btn btn-danger m-1 bit-btn"
                       disabled={
                         auction.paused ||
-                        b > auction.teamBalance ||
                         auction.timer <= 0
                       }
                       onClick={() => placeBid(b)}
